@@ -1,0 +1,11 @@
+{
+  "sub": "12345ABC-DF67-890D-9CB5-ABC34D56E798",
+  "unique_name": "12345ABC-DF67-890D-9CB5-ABC34D56E798",
+  "jti": "5d82f567-ba2a-4c5c-a441-6bca594ce654",
+  "iat": 1740826800,
+  "prp": 2,
+  "nbf": 1740826800,
+  "exp": 1740828600,
+  "iss": "inpol-direct",
+  "aud": "inpol-direct-2fa"
+}

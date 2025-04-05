@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "id": "abcd1234-56ef-78db-b90d-abc123def456",
+      "signature": null,
+      "type": {
+        "id": "b83a38ca-dbca-40d3-9b68-e321f6d5cf3a",
+        "polish": "Uznanie za obywatela polskiego",
+        "english": "Recognition as a Polish citizen",
+        "russian": "Признание гражданином Польши",
+        "ukrainian": "Визнання громадянином Польщі"
+      },
+      "person": "Jon Doe",
+      "status": 1,
+      "creationDate": "2025-02-08T15:30:16.3265813Z"
+    }
+  ],
+  "isEmpty": false,
+  "currentPage": 1,
+  "resultsPerPage": 10,
+  "totalPages": 1,
+  "totalResults": 1
+}

@@ -1,0 +1,16 @@
+{
+  "userId": "12345ABC-DF67-890D-9CB5-ABC34D56E798",
+  "surname": "Doe",
+  "firstName": "Jon",
+  "email": "j.doe@test.com",
+  "dateOfBirth": "2000-01-01T00:00:00Z",
+  "citizenship": {
+    "id": "D223E619-CD6E-4B86-B153-A91F1D7FF21C",
+    "polish": "Ukraina",
+    "english": "Ukraine",
+    "russian": "Украина",
+    "ukrainian": "Україна",
+    "groupBy": null,
+    "orderBy": null
+  }
+}
