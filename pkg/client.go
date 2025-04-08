@@ -119,8 +119,8 @@ func (c *client) Dates(ctx context.Context) ([]string, error) {
 
 func (c *client) Reserve(ctx context.Context, slot Slot) (bool, error) {
 	reqBody := Reserve{
-		ProceedingId: c.conf.Case,
 		SlotId:       slot.Id,
+		ProceedingId: c.conf.Case,
 		Name:         c.conf.Name,
 		LastName:     c.conf.LastName,
 		DateOfBirth:  c.conf.DateOfBirth,
@@ -144,14 +144,7 @@ func (c *client) Reserve(ctx context.Context, slot Slot) (bool, error) {
 	}
 	defer res.Body.Close()
 
-	c.logger.Println("reserve res", res)
-
-	var data map[string]interface{}
-	err = json.NewDecoder(res.Body).Decode(&data)
-	c.logger.Println("reserve body", res.Body)
-	if err != nil {
-		c.logger.Println(err)
-	}
+	c.logger.Println("reserve status", res.StatusCode)
 
 	responseData, err := io.ReadAll(res.Body)
 	c.logger.Println("reserve str", string(responseData))
@@ -162,7 +155,6 @@ func (c *client) Reserve(ctx context.Context, slot Slot) (bool, error) {
 func (c *client) GetMFA(ctx context.Context) string {
 	mfaURL := &url.URL{Scheme: "https", Host: c.conf.Host, Path: "/identity/two-factor"}
 	verifyURL := &url.URL{Scheme: "https", Host: c.conf.Host, Path: "/identity/two-factor-verification"}
-	c.logger.Println(mfaURL.String(), verifyURL.String())
 
 	enc, err := json.Marshal(map[string]string{"purpose": "MakeAppointment"})
 	clickReq, err := c.prepareRequest(ctx, mfaURL, bytes.NewReader(enc))
@@ -177,13 +169,12 @@ func (c *client) GetMFA(ctx context.Context) string {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		c.logger.Println("MFA status code", res.StatusCode)
+		c.logger.Println("MFA status", res.StatusCode)
 		return ""
 	}
 
 	var data map[string]string
 	err = json.NewDecoder(res.Body).Decode(&data)
-	c.logger.Println("MFA res", data)
 	if err != nil {
 		c.logger.Println(err)
 		return ""
@@ -191,7 +182,6 @@ func (c *client) GetMFA(ctx context.Context) string {
 
 	data["verificationCode"] = c.readCode()
 	delete(data, "provider")
-	c.logger.Println("MFA ver req", data)
 
 	mfaBody, err := json.Marshal(data)
 	mfaReq, err := c.prepareRequest(ctx, verifyURL, bytes.NewReader(mfaBody))
@@ -206,7 +196,7 @@ func (c *client) GetMFA(ctx context.Context) string {
 	}
 	defer mfaRes.Body.Close()
 	if mfaRes.StatusCode != http.StatusOK {
-		c.logger.Println("MFA status code", res.StatusCode)
+		c.logger.Println("MFA verify status", res.StatusCode)
 		return ""
 	}
 
@@ -293,7 +283,7 @@ func (c *client) validateToken() error {
 	//fmt.Println("exp", exp.Format("2006-01-02 15:04:05"))
 
 	if exp.Before(time.Now()) {
-		//panic("token expired")
+		panic("token expired")
 		return errors.New("token expired")
 	}
 
