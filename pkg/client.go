@@ -196,7 +196,7 @@ func (c *client) GetMFA(ctx context.Context) string {
 	}
 	defer mfaRes.Body.Close()
 	if mfaRes.StatusCode != http.StatusOK {
-		c.logger.Println("MFA verify status", res.StatusCode)
+		c.logger.Println("MFA verify status", mfaRes.StatusCode)
 		return ""
 	}
 

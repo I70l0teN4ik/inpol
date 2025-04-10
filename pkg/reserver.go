@@ -210,6 +210,8 @@ func (r reserver) reserve(ctx context.Context, slots []Slot) bool {
 				done = true
 				r.logger.Println("Reservation done:", slot.Id, slot.Date)
 				break
+			} else {
+				r.logger.Println()
 			}
 		}
 	}
