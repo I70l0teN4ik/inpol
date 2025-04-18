@@ -8,4 +8,7 @@ type Config struct {
 	LastName    string `json:"lastName"`
 	DateOfBirth string `json:"dateOfBirth"`
 	MFA         string `json:"MFA"`
+	Email       string `json:"email"`
+	UserID      string `json:"userId"`
+	InpolSecret string `json:"inpolSecret"`
 }

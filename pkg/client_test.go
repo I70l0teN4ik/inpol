@@ -9,9 +9,7 @@ import (
 	"log"
 	"net/http"
 	"testing"
-	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -42,9 +40,10 @@ func TestNewClient(t *testing.T) {
 		jwt  string
 	}
 	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		name      string
+		args      args
+		wantErr   bool
+		wantPanic bool
 	}{
 		{
 			name: "Without JWT",
@@ -60,22 +59,25 @@ func TestNewClient(t *testing.T) {
 				conf: Config{},
 				jwt:  token,
 			},
-			wantErr: true,
+			wantPanic: true,
 		},
 		{
 			name: "With valid JWT",
 			args: args{
 				conf: Config{},
-				jwt:  mockToken(),
+				jwt:  generateToken(Config{}),
 			},
 			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewClient(tt.args.conf, tt.args.jwt)
-
-			assert.Equal(t, tt.wantErr, err != nil, "NewClient() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantPanic {
+				assert.Panics(t, func() { NewClient(tt.args.conf, tt.args.jwt) }, "NewClient() should panic")
+			} else {
+				_, err := NewClient(tt.args.conf, tt.args.jwt)
+				assert.Equal(t, tt.wantErr, err != nil, "NewClient() error = %v, wantErr %v", err, tt.wantErr)
+			}
 		})
 	}
 }
@@ -84,7 +86,7 @@ func Test_client_Slots(t *testing.T) {
 
 	c := client{
 		conf:   Config{},
-		JWT:    mockToken(),
+		JWT:    generateToken(Config{}),
 		logger: log.New(log.Writer(), "test: ", log.LstdFlags),
 		client: NewTestClient(func(req *http.Request) *http.Response {
 			// Test request parameters
@@ -144,17 +146,4 @@ func Test_client_Slots(t *testing.T) {
 			}
 		})
 	}
-}
-
-func mockToken() string {
-	validToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": "12345ABC-DF67-890D-9CB5-ABC34D56E798",
-		"aud": "inpol-direct",
-		"iss": "inpol-direct",
-		"iat": time.Now().Unix(),
-		"nbf": time.Now().Add(time.Minute - 1).Unix(),
-		"exp": time.Now().Add(time.Minute * 10).Unix(),
-	})
-	tokenString, _ := validToken.SignedString([]byte("secret"))
-	return tokenString
 }

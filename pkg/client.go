@@ -136,7 +136,14 @@ func (c *client) Reserve(ctx context.Context, slot Slot) (bool, error) {
 		return false, err
 	}
 
-	req.Header.Set("2fa", "Bearer "+c.GetMFA(ctx))
+	// use pre generated MFA from .env
+	mfa := c.conf.MFA
+
+	if mfa == "" {
+		mfa = c.GetMFA(ctx)
+	}
+
+	req.Header.Set("2fa", "Bearer "+mfa)
 
 	res, err := c.client.Do(req)
 	if err != nil {

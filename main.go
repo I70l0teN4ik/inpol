@@ -28,6 +28,9 @@ func main() {
 		LastName:    os.Getenv("LAST_NAME"),
 		DateOfBirth: os.Getenv("DATE_OF_BIRTH"),
 		MFA:         os.Getenv("MFA"),
+		Email:       os.Getenv("EMAIL"),
+		UserID:      os.Getenv("USER_ID"),
+		InpolSecret: os.Getenv("INPOL_SECRET"),
 	}
 	token := os.Getenv("JWT")
 
