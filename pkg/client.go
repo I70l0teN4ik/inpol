@@ -28,6 +28,7 @@ type Client interface {
 	Slots(ctx context.Context, date string) ([]Slot, error)
 	Reserve(ctx context.Context, slot Slot) (bool, error)
 	GetMFA(ctx context.Context) string
+	NotifyTelegramUsers(message string) error
 }
 
 type client struct {
@@ -36,6 +37,26 @@ type client struct {
 	conf   Config
 	logger *log.Logger
 	client *http.Client
+}
+
+func (c *client) NotifyTelegramUsers(message string) error {
+	botToken := c.conf.TelegramBotToken
+	chatIDs := c.conf.TelegramChatIDs
+
+	// Skip if not configured
+	if botToken == "" || len(chatIDs) == 0 {
+		c.logger.Println("Telegram notification skipped: missing configuration")
+		return nil
+	}
+
+	err := SendTelegramMessage(botToken, chatIDs, message)
+	if err != nil {
+		c.logger.Printf("Failed to send Telegram notification: %v", err)
+		return err
+	}
+
+	c.logger.Println("Telegram notification sent successfully")
+	return nil
 }
 
 func NewClient(conf Config, jwt string) (Client, error) {

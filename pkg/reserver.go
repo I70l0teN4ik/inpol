@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -158,6 +159,9 @@ func (r reserver) WatchDates(sleep int) error {
 		for _, date := range dates {
 			slots, _ := r.client.Slots(ctx, date)
 			if len(slots) > 0 {
+				message := fmt.Sprintf("Found slots for date %s", date)
+				r.client.NotifyTelegramUsers(message)
+
 				done = r.reserve(ctx, slots)
 				break
 			}
