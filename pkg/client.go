@@ -28,6 +28,8 @@ type Client interface {
 	Slots(ctx context.Context, date string) ([]Slot, error)
 	Reserve(ctx context.Context, slot Slot) (bool, error)
 	GetMFA(ctx context.Context) string
+	ReservationQueues(ctx context.Context) ([]ReservationQueue, error)
+	NotifyTelegramUsers(message string) error
 }
 
 type client struct {
@@ -36,6 +38,26 @@ type client struct {
 	conf   Config
 	logger *log.Logger
 	client *http.Client
+}
+
+func (c *client) NotifyTelegramUsers(message string) error {
+	botToken := c.conf.TelegramBotToken
+	chatIDs := c.conf.TelegramChatIDs
+
+	// Skip if not configured
+	if botToken == "" || len(chatIDs) == 0 {
+		c.logger.Println("Telegram notification skipped: missing configuration")
+		return nil
+	}
+
+	err := SendTelegramMessage(botToken, chatIDs, message)
+	if err != nil {
+		c.logger.Printf("Failed to send Telegram notification: %v", err)
+		return err
+	}
+
+	c.logger.Println("Telegram notification sent successfully")
+	return nil
 }
 
 func NewClient(conf Config, jwt string) (Client, error) {
@@ -58,14 +80,14 @@ func NewClient(conf Config, jwt string) (Client, error) {
 
 func (c *client) Login(username string, password string) (string, error) {
 
-	//req, err := c.prepareRequest(context.Background(), &url.URL{Scheme: "https", Host: c.conf.Host, Path: refresh}, nil)
+	//req, err := c.preparePostRequest(context.Background(), &url.URL{Scheme: "https", Host: c.conf.Host, Path: refresh}, nil)
 	panic("implement me")
 }
 
 func (c *client) RefreshToken() error {
 	c.logger.Println("Refreshing token...")
 
-	req, err := c.prepareRequest(context.Background(), &url.URL{Scheme: "https", Host: c.conf.Host, Path: refresh}, nil)
+	req, err := c.preparePostRequest(context.Background(), &url.URL{Scheme: "https", Host: c.conf.Host, Path: refresh}, nil)
 	if err != nil {
 		return err
 	}
@@ -90,7 +112,7 @@ func (c *client) RefreshToken() error {
 }
 
 func (c *client) Dates(ctx context.Context) ([]string, error) {
-	req, err := c.prepareRequest(ctx, c.reserveUrl("dates"), http.NoBody)
+	req, err := c.preparePostRequest(ctx, c.reserveUrl("dates"), http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +153,7 @@ func (c *client) Reserve(ctx context.Context, slot Slot) (bool, error) {
 		return false, err
 	}
 
-	req, err := c.prepareRequest(ctx, c.reserveUrl("reserve"), bytes.NewReader(enc))
+	req, err := c.preparePostRequest(ctx, c.reserveUrl("reserve"), bytes.NewReader(enc))
 	if err != nil {
 		return false, err
 	}
@@ -164,7 +186,7 @@ func (c *client) GetMFA(ctx context.Context) string {
 	verifyURL := &url.URL{Scheme: "https", Host: c.conf.Host, Path: "/identity/two-factor-verification"}
 
 	enc, err := json.Marshal(map[string]string{"purpose": "MakeAppointment"})
-	clickReq, err := c.prepareRequest(ctx, mfaURL, bytes.NewReader(enc))
+	clickReq, err := c.preparePostRequest(ctx, mfaURL, bytes.NewReader(enc))
 	if err != nil {
 		c.logger.Println(err)
 		return ""
@@ -187,11 +209,28 @@ func (c *client) GetMFA(ctx context.Context) string {
 		return ""
 	}
 
+	// Start background token refresher
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				err := c.RefreshToken()
+				if err != nil {
+					c.logger.Println("background token refresh failed:", err)
+				}
+			}
+		}
+	}()
+
 	data["verificationCode"] = c.readCode()
 	delete(data, "provider")
 
 	mfaBody, err := json.Marshal(data)
-	mfaReq, err := c.prepareRequest(ctx, verifyURL, bytes.NewReader(mfaBody))
+	mfaReq, err := c.preparePostRequest(ctx, verifyURL, bytes.NewReader(mfaBody))
 	if err != nil {
 		c.logger.Println(err)
 		return ""
@@ -220,7 +259,7 @@ func (c *client) GetMFA(ctx context.Context) string {
 func (c *client) Slots(ctx context.Context, date string) ([]Slot, error) {
 	var slots []Slot
 
-	req, err := c.prepareRequest(ctx, c.reserveUrl(date+"/slots"), http.NoBody)
+	req, err := c.preparePostRequest(ctx, c.reserveUrl(date+"/slots"), http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -238,11 +277,52 @@ func (c *client) Slots(ctx context.Context, date string) ([]Slot, error) {
 	return slots, nil
 }
 
+func (c *client) reservationQueuesUrl() *url.URL {
+	return &url.URL{Scheme: "https", Host: c.conf.Host, Path: fmt.Sprintf("/api/proceedings/%s/reservationQueues", c.conf.Case)}
+}
+
+func (c *client) ReservationQueues(ctx context.Context) ([]ReservationQueue, error) {
+	var queues []ReservationQueue
+
+	req, err := c.prepareGetRequest(ctx, c.reservationQueuesUrl())
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer res.Body.Close()
+
+	bodyBytes, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
+	}
+	c.logger.Printf("Response body: %s", string(bodyBytes))
+
+	err = json.NewDecoder(res.Body).Decode(&queues)
+	if err != nil {
+		return nil, err
+	}
+
+	return queues, nil
+}
+
 func (c *client) reserveUrl(path string) *url.URL {
 	return &url.URL{Scheme: "https", Host: c.conf.Host, Path: fmt.Sprintf("/api/reservations/queue/%s/%s", c.conf.Queue, path)}
 }
 
-func (c *client) prepareRequest(ctx context.Context, endpoint *url.URL, body io.Reader) (*http.Request, error) {
+func (c *client) prepareGetRequest(ctx context.Context, endpoint *url.URL) (*http.Request, error) {
+	return c.prepareRequest(ctx, endpoint, http.MethodGet, nil)
+}
+
+func (c *client) preparePostRequest(ctx context.Context, endpoint *url.URL, body io.Reader) (*http.Request, error) {
+	return c.prepareRequest(ctx, endpoint, http.MethodPost, body)
+}
+
+func (c *client) prepareRequest(ctx context.Context, endpoint *url.URL, method string, body io.Reader) (*http.Request, error) {
 	if endpoint.Path != refresh {
 		err := c.validateToken()
 		if err != nil {
@@ -253,7 +333,7 @@ func (c *client) prepareRequest(ctx context.Context, endpoint *url.URL, body io.
 
 	req, err := http.NewRequestWithContext(
 		ctx,
-		http.MethodPost,
+		method,
 		endpoint.String(),
 		body,
 	)

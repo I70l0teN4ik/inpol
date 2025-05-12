@@ -2,8 +2,10 @@ package pkg
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -14,6 +16,7 @@ type Reserver interface {
 	AsyncReserve(limit int) error
 	CheckDates() error
 	WatchDates(sleep int) error
+	GetReservationQueues() error
 	Auth() error
 	GetMFA() string
 }
@@ -138,19 +141,41 @@ func (r reserver) CheckDates() error {
 	return eg.Wait()
 }
 
+func (r reserver) GetReservationQueues() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err := r.client.ReservationQueues(ctx)
+	return err
+}
+
 func (r reserver) WatchDates(sleep int) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dates := make([]string, 0, 5)
-	d := time.Now()
+	datesToWatchString := os.Getenv("DATES_TO_WATCH")
+	var datesToWatch []string
+	if datesToWatchString != "" {
+		datesToWatch = strings.Split(datesToWatchString, ",")
+	} else {
+		datesToWatch = nil
+	}
+	var dates []string
 
-	for i := 0; i < 7; i++ {
-		d = d.Add(time.Hour * 24)
-		if d.Weekday() != time.Saturday && d.Weekday() != time.Sunday {
-			dates = append(dates, d.Format("2006-01-02"))
+	if datesToWatch != nil {
+		dates = datesToWatch
+	} else {
+		dates = make([]string, 0, 5)
+		d := time.Now()
+
+		for range 7 {
+			d = d.Add(time.Hour * 24)
+			if d.Weekday() != time.Saturday && d.Weekday() != time.Sunday {
+				dates = append(dates, d.Format("2006-01-02"))
+			}
 		}
 	}
+
 	r.logger.Println(dates)
 
 	var done bool
@@ -158,6 +183,9 @@ func (r reserver) WatchDates(sleep int) error {
 		for _, date := range dates {
 			slots, _ := r.client.Slots(ctx, date)
 			if len(slots) > 0 {
+				message := fmt.Sprintf("Found slots for date %s", date)
+				r.client.NotifyTelegramUsers(message)
+
 				done = r.reserve(ctx, slots)
 				break
 			}
@@ -188,7 +216,17 @@ func (r reserver) getSlots(ctx context.Context, day string) ([]Slot, error) {
 }
 
 func (r reserver) reserve(ctx context.Context, slots []Slot) bool {
-	slot := slots[len(slots)-1]
+	// Find the slot with the largest count
+	// If multiple slots have the same largest count, select the last one
+	largestCountSlot := slots[0]
+	for _, s := range slots {
+		if s.Count >= largestCountSlot.Count {
+			largestCountSlot = s
+		}
+	}
+
+	slot := largestCountSlot
+
 	r.logger.Println(slot)
 
 	done, err := r.client.Reserve(ctx, slot)
