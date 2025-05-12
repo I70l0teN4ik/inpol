@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -152,15 +153,29 @@ func (r reserver) WatchDates(sleep int) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dates := make([]string, 0, 5)
-	d := time.Now()
+	datesToWatchString := os.Getenv("DATES_TO_WATCH")
+	var datesToWatch []string
+	if datesToWatchString != "" {
+		datesToWatch = strings.Split(datesToWatchString, ",")
+	} else {
+		datesToWatch = nil
+	}
+	var dates []string
 
-	for i := 0; i < 7; i++ {
-		d = d.Add(time.Hour * 24)
-		if d.Weekday() != time.Saturday && d.Weekday() != time.Sunday {
-			dates = append(dates, d.Format("2006-01-02"))
+	if datesToWatch != nil {
+		dates = datesToWatch
+	} else {
+		dates = make([]string, 0, 5)
+		d := time.Now()
+
+		for range 7 {
+			d = d.Add(time.Hour * 24)
+			if d.Weekday() != time.Saturday && d.Weekday() != time.Sunday {
+				dates = append(dates, d.Format("2006-01-02"))
+			}
 		}
 	}
+
 	r.logger.Println(dates)
 
 	var done bool
