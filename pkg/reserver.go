@@ -201,7 +201,17 @@ func (r reserver) getSlots(ctx context.Context, day string) ([]Slot, error) {
 }
 
 func (r reserver) reserve(ctx context.Context, slots []Slot) bool {
-	slot := slots[len(slots)-1]
+	// Find the slot with the largest count
+	// If multiple slots have the same largest count, select the last one
+	largestCountSlot := slots[0]
+	for _, s := range slots {
+		if s.Count >= largestCountSlot.Count {
+			largestCountSlot = s
+		}
+	}
+
+	slot := largestCountSlot
+
 	r.logger.Println(slot)
 
 	done, err := r.client.Reserve(ctx, slot)
