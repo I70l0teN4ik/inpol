@@ -15,6 +15,7 @@ type Reserver interface {
 	AsyncReserve(limit int) error
 	CheckDates() error
 	WatchDates(sleep int) error
+	GetReservationQueues() error
 	Auth() error
 	GetMFA() string
 }
@@ -137,6 +138,14 @@ func (r reserver) CheckDates() error {
 	}
 
 	return eg.Wait()
+}
+
+func (r reserver) GetReservationQueues() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err := r.client.ReservationQueues(ctx)
+	return err
 }
 
 func (r reserver) WatchDates(sleep int) error {

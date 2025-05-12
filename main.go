@@ -66,8 +66,8 @@ func main() {
 			sleep, _ = strconv.Atoi(os.Args[2])
 		}
 		err = svc.WatchDates(sleep)
-	} else if cmd == "mfa" {
-		fmt.Println(svc.GetMFA())
+	} else if cmd == "queues" {
+		err = svc.GetReservationQueues()
 	} else if cmd == "async" || cmd == "a" {
 		limit := 10
 		if len(os.Args) > 2 {
