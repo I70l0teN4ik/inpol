@@ -209,6 +209,23 @@ func (c *client) GetMFA(ctx context.Context) string {
 		return ""
 	}
 
+	// Start background token refresher
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				err := c.RefreshToken()
+				if err != nil {
+					c.logger.Println("background token refresh failed:", err)
+				}
+			}
+		}
+	}()
+
 	data["verificationCode"] = c.readCode()
 	delete(data, "provider")
 
